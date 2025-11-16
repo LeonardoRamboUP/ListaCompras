@@ -23,6 +23,7 @@ import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -41,10 +42,17 @@ import com.example.listacompras.ui.lista.ListaDeComprasViewModel
 @Composable
 fun TelaListaDeCompras(
     navController: NavController,
+    listaId: String, // 1. ACEITA O PARÂMETRO 'listaId'
     modifier: Modifier = Modifier,
     viewModel: ListaDeComprasViewModel = viewModel()
 ) {
-    val itensDaLista by viewModel.uiState.collectAsState()
+    // 2. USA O 'LaunchedEffect' PARA CARREGAR OS DADOS DA LISTA CORRETA
+    LaunchedEffect(listaId) {
+        viewModel.carregarItensDaLista(listaId)
+    }
+
+    // 3. OBSERVA O ESTADO CORRETO ('itensState')
+    val itensDaLista by viewModel.itensState.collectAsState()
 
     Box(modifier = modifier.fillMaxSize()) {
         if (itensDaLista.isEmpty()) {
@@ -65,7 +73,8 @@ fun TelaListaDeCompras(
                     val dismissState = rememberSwipeToDismissBoxState(
                         confirmValueChange = {
                             if (it == SwipeToDismissBoxValue.EndToStart || it == SwipeToDismissBoxValue.StartToEnd) {
-                                viewModel.deletarItem(item)
+                                // 4. PASSA O 'listaId' PARA A FUNÇÃO DO VIEWMODEL
+                                viewModel.deletarItem(listaId, item)
                                 true
                             } else {
                                 false
@@ -81,7 +90,10 @@ fun TelaListaDeCompras(
                     ) {
                         ItemDaListaView(
                             item = item,
-                            onItemBoughtChanged = { viewModel.alternarStatusDeComprado(item) }
+                            onItemBoughtChanged = {
+                                // 4. PASSA O 'listaId' PARA A FUNÇÃO DO VIEWMODEL
+                                viewModel.alternarStatusDeComprado(listaId, item)
+                            }
                         )
                     }
                 }

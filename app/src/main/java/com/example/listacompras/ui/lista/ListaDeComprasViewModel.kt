@@ -3,57 +3,77 @@ package com.example.listacompras.ui.lista
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.listacompras.data.ItemDeCompra
+import com.example.listacompras.data.ListaDeCompras
 import com.example.listacompras.data.repository.RepositorioDeCompras
 import com.example.listacompras.data.repository.RepositorioFirebaseDeCompras
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/**
- * ViewModel para a tela da lista de compras.
- * Ele gerencia o estado da UI e se comunica com o repositório de dados.
- */
-class ListaDeComprasViewModel(private val repositorio: RepositorioDeCompras = RepositorioFirebaseDeCompras()) : ViewModel() {
+class ListaDeComprasViewModel(
+    private val repositorio: RepositorioDeCompras = RepositorioFirebaseDeCompras()
+) : ViewModel() {
 
-    // StateFlow privado e mutável que guarda o estado atual da lista.
-    private val _uiState = MutableStateFlow<List<ItemDeCompra>>(emptyList())
-    // StateFlow público e imutável que a UI observa para se atualizar.
-    val uiState: StateFlow<List<ItemDeCompra>> = _uiState.asStateFlow()
+    // Estado para a lista de ITENS (usado na tela de detalhes)
+    private val _itensState = MutableStateFlow<List<ItemDeCompra>>(emptyList())
+    val itensState: StateFlow<List<ItemDeCompra>> = _itensState.asStateFlow()
+
+    // Estado para a lista de LISTAS (usado na tela principal)
+    private val _listasState = MutableStateFlow<List<ListaDeCompras>>(emptyList())
+    val listasState: StateFlow<List<ListaDeCompras>> = _listasState.asStateFlow()
+
+    private var jobDeColetaDeItens: Job? = null
 
     init {
-        // Inicia a coleta de dados do repositório assim que o ViewModel é criado.
+        carregarListasPrincipais()
+    }
+
+    private fun carregarListasPrincipais() {
         viewModelScope.launch {
-            repositorio.obterListaDeCompras().collect { itens ->
-                _uiState.value = itens
+            repositorio.obterListas().collect { listas ->
+                _listasState.value = listas
             }
         }
     }
 
-    /**
-     * Pede ao repositório para alternar o estado de um item (comprado/não comprado).
-     */
-    fun alternarStatusDeComprado(item: ItemDeCompra) {
+    fun adicionarLista(nomeDaLista: String) {
         viewModelScope.launch {
-            repositorio.alternarStatusDeComprado(item)
+            repositorio.adicionarLista(nomeDaLista)
         }
     }
 
-    /**
-     * Pede ao repositório para adicionar um novo item.
-     */
-    fun adicionarItem(nome: String, quantidadeStr: String) {
+    fun deletarLista(listaId: String) {
         viewModelScope.launch {
-            repositorio.adicionarItem(nome, quantidadeStr)
+            repositorio.deletarLista(listaId)
         }
     }
 
-    /**
-     * Pede ao repositório para deletar um item.
-     */
-    fun deletarItem(item: ItemDeCompra) {
+    fun carregarItensDaLista(listaId: String) {
+        jobDeColetaDeItens?.cancel()
+        jobDeColetaDeItens = viewModelScope.launch {
+            repositorio.obterItensDaLista(listaId).collect { itens ->
+                _itensState.value = itens
+            }
+        }
+    }
+
+    fun adicionarItem(listaId: String, nomeDoItem: String, quantidadeStr: String) {
         viewModelScope.launch {
-            repositorio.deletarItem(item)
+            repositorio.adicionarItem(listaId, nomeDoItem, quantidadeStr)
+        }
+    }
+
+    fun alternarStatusDeComprado(listaId: String, item: ItemDeCompra) {
+        viewModelScope.launch {
+            repositorio.alternarStatusDeComprado(listaId, item)
+        }
+    }
+
+    fun deletarItem(listaId: String, item: ItemDeCompra) {
+        viewModelScope.launch {
+            repositorio.deletarItem(listaId, item)
         }
     }
 }

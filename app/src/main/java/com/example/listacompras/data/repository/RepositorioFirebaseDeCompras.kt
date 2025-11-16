@@ -2,7 +2,7 @@ package com.example.listacompras.data.repository
 
 import android.util.Log
 import com.example.listacompras.data.ItemDeCompra
-// Importações Corretas para o Firebase moderno
+import com.example.listacompras.data.ListaDeCompras
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 import com.google.firebase.firestore.toObjects
@@ -10,62 +10,65 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 
-/**
- * Implementação do repositório que usa o Cloud Firestore como fonte de dados.
- * Esta classe cumpre o contrato definido por RepositorioDeCompras.
- */
 class RepositorioFirebaseDeCompras : RepositorioDeCompras {
 
-    // Obtém a instância do Firestore e a referência para a nossa coleção.
-    private val db = Firebase.firestore
-    private val colecaoListaDeCompras = db.collection("lista_de_compras")
+    private val colecaoDeListas = Firebase.firestore.collection("listas_de_compras")
 
-    /**
-     * Ouve as atualizações da coleção no Firestore em tempo real.
-     * O callbackFlow nos permite converter o listener do Firebase em um Flow do Kotlin.
-     */
-    override fun obterListaDeCompras(): Flow<List<ItemDeCompra>> = callbackFlow {
-        val listener = colecaoListaDeCompras.orderBy("criadoEm").addSnapshotListener { snapshots, erro ->
+    override fun obterListas(): Flow<List<ListaDeCompras>> = callbackFlow {
+        val listener = colecaoDeListas.addSnapshotListener { snapshots, erro ->
             if (erro != null) {
-                Log.w("RepositorioFirebase", "Falha ao ouvir o banco de dados.", erro)
-                close(erro) // Fecha o Flow com erro
+                Log.w("RepositorioFirebase", "Falha ao ouvir listas", erro)
+                close(erro)
                 return@addSnapshotListener
             }
-
-            snapshots?.let {
-                // Converte os documentos do Firestore para nossa classe de dados e envia para o Flow
-                trySend(it.toObjects<ItemDeCompra>()).isSuccess
-            }
+            snapshots?.let { trySend(it.toObjects()).isSuccess }
         }
-        // Garante que o listener seja removido quando o Flow não estiver mais sendo coletado
         awaitClose { listener.remove() }
     }
 
-    /**
-     * Adiciona um novo item ao Firestore.
-     */
-    override suspend fun adicionarItem(nome: String, quantidadeStr: String) {
-        val quantidade = quantidadeStr.toIntOrNull() ?: 1
-        val documento = colecaoListaDeCompras.document()
+    override suspend fun adicionarLista(nomeDaLista: String) {
+        val documento = colecaoDeListas.document()
+        val novaLista = ListaDeCompras(id = documento.id, nome = nomeDaLista)
+        documento.set(novaLista)
+    }
+
+    override suspend fun deletarLista(listaId: String) {
+        // ATENÇÃO: Isso deleta o documento da lista, mas não a sub-coleção de itens.
+        // Para um app de produção, uma Cloud Function seria necessária para limpar os itens órfãos.
+        colecaoDeListas.document(listaId).delete()
+    }
+
+    override fun obterItensDaLista(listaId: String): Flow<List<ItemDeCompra>> = callbackFlow {
+        val listener = colecaoDeListas.document(listaId).collection("itens")
+            .orderBy("criadoEm")
+            .addSnapshotListener { snapshots, erro ->
+                if (erro != null) {
+                    Log.w("RepositorioFirebase", "Falha ao ouvir itens da lista $listaId", erro)
+                    close(erro)
+                    return@addSnapshotListener
+                }
+                snapshots?.let { trySend(it.toObjects()).isSuccess }
+            }
+        awaitClose { listener.remove() }
+    }
+
+    override suspend fun adicionarItem(listaId: String, nomeDoItem: String, quantidadeStr: String) {
+        val colecaoDeItens = colecaoDeListas.document(listaId).collection("itens")
+        val documento = colecaoDeItens.document()
         val novoItem = ItemDeCompra(
             id = documento.id,
-            nome = nome,
-            quantidade = quantidade
+            nome = nomeDoItem,
+            quantidade = quantidadeStr.toIntOrNull() ?: 1
         )
         documento.set(novoItem)
     }
 
-    /**
-     * Atualiza o status 'comprado' de um item no Firestore.
-     */
-    override suspend fun alternarStatusDeComprado(item: ItemDeCompra) {
-        colecaoListaDeCompras.document(item.id).update("comprado", !item.comprado)
+    override suspend fun alternarStatusDeComprado(listaId: String, item: ItemDeCompra) {
+        colecaoDeListas.document(listaId).collection("itens").document(item.id)
+            .update("comprado", !item.comprado)
     }
 
-    /**
-     * Deleta um item do Firestore usando seu ID.
-     */
-    override suspend fun deletarItem(item: ItemDeCompra) {
-        colecaoListaDeCompras.document(item.id).delete()
+    override suspend fun deletarItem(listaId: String, item: ItemDeCompra) {
+        colecaoDeListas.document(listaId).collection("itens").document(item.id).delete()
     }
 }

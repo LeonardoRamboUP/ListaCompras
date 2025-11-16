@@ -14,17 +14,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.listacompras.ui.lista.ListaDeComprasViewModel
 
-/**
- * Tela para adicionar um novo item à lista de compras.
- */
 @Composable
 fun TelaAdicionarItem(
     navController: NavController,
+    listaId: String, // Parâmetro obrigatório da rota
     modifier: Modifier = Modifier,
-    viewModel: ListaDeComprasViewModel = viewModel() // Recebe o ViewModel compartilhado
+    viewModel: ListaDeComprasViewModel = viewModel()
 ) {
-    // Estados locais para guardar o que o usuário digita nos campos de texto.
-    // `remember` garante que o estado sobreviva a recomposições.
     var nomeDoItem by remember { mutableStateOf("") }
     var quantidade by remember { mutableStateOf("1") }
 
@@ -56,11 +52,10 @@ fun TelaAdicionarItem(
 
         Button(
             onClick = {
-                // Valida se o nome do item não está vazio antes de salvar.
                 if (nomeDoItem.isNotBlank()) {
-                    // Chama a função do ViewModel para adicionar o item (a lógica de salvar fica no ViewModel)
-                    viewModel.adicionarItem(nomeDoItem, quantidade)
-                    // Navega de volta para a tela anterior (a lista de compras)
+                    // Chama a função do ViewModel, passando o ID da lista
+                    viewModel.adicionarItem(listaId, nomeDoItem, quantidade)
+                    // Volta para a tela anterior (a lista de itens)
                     navController.popBackStack()
                 }
             },

@@ -15,35 +15,33 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.listacompras.ui.lista.ListaDeComprasViewModel
 import com.example.listacompras.ui.telas.TelaAdicionarItem
 import com.example.listacompras.ui.telas.TelaConfiguracoes
 import com.example.listacompras.ui.telas.TelaListaDeCompras
+import com.example.listacompras.ui.telas.TelaListasPrincipais
 import com.example.listacompras.ui.theme.ListaComprasTheme
 
-/**
- * Define as rotas (os "endereços") para cada tela do aplicativo.
- * Usar um objeto garante que os nomes das rotas sejam consistentes e evita erros de digitação.
- */
 object Rotas {
-    const val LISTA_DE_COMPRAS = "lista_de_compras"
-    const val ADICIONAR_ITEM = "adicionar_item"
-    const val CONFIGURACOES = "configuracoes"
+    const val TELA_LISTAS_PRINCIPAIS = "telas_listas_principais"
+    const val TELA_LISTA_DE_COMPRAS = "telas_lista_de_compras/{listaId}"
+    const val TELA_ADICIONAR_ITEM = "telas_adicionar_item/{listaId}"
+
+    fun criarRotaListaDeCompras(listaId: String) = "telas_lista_de_compras/$listaId"
+    fun criarRotaAdicionarItem(listaId: String) = "telas_adicionar_item/$listaId"
 }
 
-/**
- * A Activity principal, ponto de entrada da aplicação Android.
- */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge() // Habilita a UI em tela cheia
+        enableEdgeToEdge()
         setContent {
             ListaComprasTheme {
                 AppListaDeCompras()
@@ -52,59 +50,58 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/**
- * O Composable raiz da aplicação. 
- * Ele configura a estrutura principal com Scaffold, TopAppBar, FAB e o sistema de navegação (NavHost).
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppListaDeCompras(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
-    // Cria a instância do ViewModel que será compartilhada entre as telas.
-    val listaDeComprasViewModel: ListaDeComprasViewModel = viewModel()
+    val viewModel: ListaDeComprasViewModel = viewModel()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val rotaAtual = navBackStackEntry?.destination?.route
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        topBar = {
-            TopAppBar(
-                title = { Text("Lista de Compras") }
-            )
-        },
+        topBar = { TopAppBar(title = { Text("Minhas Listas de Compras") }) },
         floatingActionButton = {
-            FloatingActionButton(onClick = { navController.navigate(Rotas.ADICIONAR_ITEM) }) {
-                Icon(Icons.Default.Add, contentDescription = "Adicionar Item")
+            if (rotaAtual?.startsWith("telas_lista_de_compras/") == true) {
+                FloatingActionButton(onClick = { 
+                    val listaId = navBackStackEntry?.arguments?.getString("listaId") ?: ""
+                    if (listaId.isNotEmpty()) {
+                        navController.navigate(Rotas.criarRotaAdicionarItem(listaId))
+                    }
+                }) {
+                    Icon(Icons.Default.Add, contentDescription = "Adicionar Item")
+                }
             }
         }
     ) { innerPadding ->
-        // NavHost é o contêiner que exibe a tela atual com base na rota.
         NavHost(
             navController = navController,
-            startDestination = Rotas.LISTA_DE_COMPRAS, // A primeira tela a ser exibida
+            startDestination = Rotas.TELA_LISTAS_PRINCIPAIS,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Rotas.LISTA_DE_COMPRAS) {
-                TelaListaDeCompras(
-                    navController = navController,
-                    viewModel = listaDeComprasViewModel // Passa o ViewModel compartilhado
-                )
+            composable(Rotas.TELA_LISTAS_PRINCIPAIS) {
+                TelaListasPrincipais(navController = navController, viewModel = viewModel)
             }
-            composable(Rotas.ADICIONAR_ITEM) {
-                TelaAdicionarItem(
-                    navController = navController,
-                    viewModel = listaDeComprasViewModel // Passa o mesmo ViewModel compartilhado
-                )
+            composable(Rotas.TELA_LISTA_DE_COMPRAS) { backStackEntry ->
+                val listaId = backStackEntry.arguments?.getString("listaId")
+                if (listaId != null) {
+                    TelaListaDeCompras(
+                        navController = navController,
+                        listaId = listaId,
+                        viewModel = viewModel
+                    )
+                }
             }
-            composable(Rotas.CONFIGURACOES) {
-                TelaConfiguracoes(navController = navController)
+            composable(Rotas.TELA_ADICIONAR_ITEM) { backStackEntry ->
+                val listaId = backStackEntry.arguments?.getString("listaId")
+                if (listaId != null) {
+                    TelaAdicionarItem(
+                        navController = navController, 
+                        listaId = listaId, 
+                        viewModel = viewModel
+                    )
+                }
             }
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun AppListaDeComprasPreview() {
-    ListaComprasTheme {
-        AppListaDeCompras()
     }
 }
